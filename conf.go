@@ -1,3 +1,7 @@
+/*
+ * Oanda APIのidとtokenをファイルから読み取る
+ */
+
 package main
 
 import (

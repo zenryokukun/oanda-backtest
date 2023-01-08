@@ -42,10 +42,12 @@ type (
 
 // from,to両方指定した場合、countの指定は出来ないので、0以下の数値を渡すこと。
 // from,to は　"YYYY-mm-ddTHH:MM:SS.000000000Z" もしくは unix時間を文字列にしたもの(fmt.Sprintf("%v",time.Now().Unix())とか)
+// priceComponent -> "M"(default):中央値？ "A":ask "B":bid
 func candlesParam(
 	p strMap,
 	count int,
 	granularity, instruments, from, to string,
+	priceComponent string,
 ) {
 	if count > 0 {
 		cntStr := strconv.Itoa(count)
@@ -53,11 +55,19 @@ func candlesParam(
 	}
 	p["granularity"] = granularity
 	p["instruments"] = instruments
+
 	if from != "" {
 		p["from"] = from
 	}
+
 	if to != "" {
 		p["to"] = to
+	}
+
+	if priceComponent == "A" || priceComponent == "B" {
+		p["price"] = priceComponent
+	} else {
+		p["price"] = "M"
 	}
 }
 
@@ -71,6 +81,16 @@ func marketOrderParam(p iMap, instrument string, units int, tif string) {
 		"instrument":  instrument,
 		"units":       units,
 		"timeInForce": tif,
+	}
+}
+
+// 成行きのcloseパラメタ
+func marketCloseParam(p iMap, longUnits, shortUnits int) {
+	if longUnits > 0 {
+		p["longUnits"] = strconv.Itoa(longUnits)
+	}
+	if shortUnits > 0 {
+		p["shortUnits"] = strconv.Itoa(shortUnits)
 	}
 }
 
@@ -89,15 +109,20 @@ func instrumentParam(p strMap, instrument string) {
 	}
 }
 
+// count -> ロウソク足何個とるか
+// from,to両方指定した場合、countの指定は出来ないので、0以下の数値を渡すこと。
+// from,to は　"YYYY-mm-ddTHH:MM:SS.000000000Z" もしくは unix時間を文字列にしたもの(fmt.Sprintf("%v",time.Now().Unix())とか)
+// priceComponent -> "M"(default):中央値？ "A":ask "B":bid
 func NewCandles(
 	goq *Goquest,
 	count int,
 	granularity, instruments, from, to string,
+	priceComponent string,
 ) *Candles {
 	res := &Candles{}
 	ep := fmt.Sprintf("/instruments/%v/candles", instruments)
 	param := strMap{}
-	candlesParam(param, count, granularity, instruments, from, to)
+	candlesParam(param, count, granularity, instruments, from, to, priceComponent)
 	goq.Get(ep, param, res)
 	return res
 }
@@ -156,12 +181,37 @@ func NewMarketOrder(goq *Goquest, instrument string, units int) *Orders {
 	ep := fmt.Sprintf("/accounts/%v/orders", goq.Auth.Id)
 	param := iMap{}
 	marketOrderParam(param, instrument, units, "")
-	goq.Post("POST", ep, param, res)
+	goq.Post(ep, param, res)
 	return res
 }
 
 // 成行きクローズ
-func NewMarketClose(goq *Goquest, instrument string) {
+// long:クローズするlongポジションunit、short:クローズするshortポジション
+// 決済しないほうのポジションには 0 を指定
+func NewMarketClose(goq *Goquest, instrument string, longUnits, shortUnits int) *CloseOrders {
+	res := &CloseOrders{}
+	param := iMap{}
+	marketCloseParam(param, longUnits, shortUnits)
 	ep := fmt.Sprintf("/accounts/%v/positions/%v/close", goq.Auth.Id, instrument)
-	goq.Post("PUT", ep, nil, nil)
+	goq.Put(ep, param, res)
+	return res
+}
+
+// 口座嬢王
+func NewAccount(goq *Goquest) *Account {
+	res := &Account{}
+	ep := "/accounts/" + goq.Auth.Id
+	goq.Get(ep, nil, res)
+	return res
+}
+
+// instruments:"USD_JPY,EUR_USD"のように複数指定可能
+func NewPricing(goq *Goquest, instruments string) *Pricing {
+	res := &Pricing{}
+	ep := "/accounts/" + goq.Auth.Id + "/pricing"
+	p := map[string]string{
+		"instruments": instruments,
+	}
+	goq.Get(ep, p, res)
+	return res
 }
