@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"runtime"
+	"strconv"
+	"time"
 )
 
 // account情報から通貨別総利益を取得
@@ -78,4 +81,23 @@ func writeFile(fpath string, i interface{}) {
 	}
 	defer f.Close()
 	f.Write(b)
+}
+
+func nextUnix(x string, span int) string {
+	unixTime, _ := time.Parse(layout(), x)
+	nu := unixTime.Add(time.Second * time.Duration(span))
+
+	uStr := strconv.FormatInt(nu.Unix(), 10)
+	return uStr
+}
+
+func genPyCommand() string {
+	switch runtime.GOOS {
+	case "windows":
+		return "python"
+	case "linux":
+		return "python3"
+	default:
+		return ""
+	}
 }

@@ -3,7 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"os/exec"
+	"strconv"
 	"time"
 
 	"github.com/zenryokukun/surfergopher/minmax"
@@ -305,20 +308,143 @@ func newTestData(goq *Goquest, unixStr string) {
 	testFile(goq, "M5", "USD_JPY", 5000, "", unixStr)
 }
 
+type X struct {
+	X []int `json:"X"`
+}
+
+func newCompareData(goq *Goquest) {
+	b, _ := ioutil.ReadFile("../oanda-bot/trade.json")
+	x := &X{}
+	json.Unmarshal(b, x)
+
+	// if len(x.X) > 5000 {
+	// 	i := len(x.X) - 5000
+	// 	x.X = x.X[i:]
+	// }
+	start := x.X[0]
+	unixStr := strconv.Itoa(start)
+	data := NewCandles(goq, 5000, "M5", "USD_JPY", unixStr, "", "").Extract()
+	_ = data
+	nu := nextUnix(data[len(data)-1].Time, 300)
+	prevlast, _ := time.Parse(layout(), data[len(data)-1].Time)
+
+	for {
+		cd := NewCandles(goq, 5000, "M5", "USD_JPY", nu, "", "")
+		sticks := cd.Extract()
+		if len(sticks) == 0 {
+			fmt.Println("sticks length was 0. Breaking loop")
+			break
+		}
+		lastT := sticks[len(sticks)-1].Time
+		_lastU, _ := time.Parse(layout(), lastT)
+		// lastU := _lastU.Unix()
+		// nuInt, _ := strconv.ParseInt(nu, 10, 0)
+		if prevlast == _lastU {
+			println("breaking lool:", nu)
+			break
+		}
+		// if nuInt >= lastU {
+		// 	println("breaking lool:", nu)
+		// 	break
+		// }
+		data = append(data, sticks...)
+		nu = nextUnix(sticks[len(sticks)-1].Time, 300)
+	}
+
+	writeFile("./testdata.json", data)
+
+	// testFile(goq, "M5", "USD_JPY", 5000, unixStr, "")
+}
+
+func execBackTest(g *Goquest, isNew bool) {
+	if isNew {
+		newTestData(g, "")
+	}
+	once()
+	frame(g)
+}
+
+func execCompare(g *Goquest) {
+	newCompareData(g)
+	once()
+	frame(g)
+
+	// python実行
+	cmd := exec.Command(genPyCommand(), "./graph.py")
+	b, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println((string(b)))
+
+	// 取引指標を取得
+	cmd = exec.Command(genPyCommand(), "../oanda-eval/main.py")
+	b, err = cmd.CombinedOutput()
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// tweetメッセージ作成
+	result := NewEval(string(b)).String()
+	month := int(time.Now().AddDate(0, -1, 0).Month())
+	msg := "💰Wavenauts:" + fmt.Sprint(month) + "月分報告とバックテスト比較💰\n"
+	msg += result + "\n"
+	msg += "#FX #USD/JPY #プログラミング初心者"
+
+	// tweet
+	t := NewTwitter("../oanda-bot/twitter.json")
+	t.tweetImage(msg, "result.png")
+}
+
 func main() {
-	goq := NewGoquest("./key.json", "live")
+
+	// os.Args[0] -> 実行ファイルのパス。
+	// os.Args[1:] -> コマンドライン引数
+	// os.Argが長さ1（引数なし）なら、既存のファイルでテスト実行（[]CandleData型のjsonファイルを./testdata.jsonの名前で保存しておく必要あり）
+	// os.Arg[1]が "compare"なら実取引との比較を実行。
+
+	goq := NewGoquest("../oanda-bot/key.json", "live")
 	_ = goq
+
+	// コマンドライン引数なしなら、既存ファイルでバックテスト
+	if len(os.Args) <= 1 {
+		fmt.Println("backtest using existing testdata.json")
+		execBackTest(goq, false)
+		return
+	}
+
+	// コマンドライン引数が"test-new"なら、最新ロウソク足を取得してバックテスト
+	if os.Args[1] == "test-new" {
+		fmt.Println("backtest using new candle data")
+		execBackTest(goq, true)
+		return
+	}
+
+	// コマンドライン引数が"compare"なら、コンペア実行。事前にサーバからbalacne.json、trade.jsonが必要
+	if os.Args[1] == "compare" {
+		fmt.Println("compare backtest and real trade")
+		execCompare(goq)
+		return
+	}
+
+	fmt.Println("Your command line argument is wrong! Only no argument,'test-new',or 'compare' is accepted.")
 
 	// ********************************************************************************************
 	// 新しいデータでテストを実施する方法：
 	// 1. newTestDataを呼ぶ。onceとframeはコメントアウト。APIでロウソク足をとってファイルに書き出される
+	//    実取引期間と比較する際には、サーバからtrade.jsonを取って来て、代わりにnewCompareDataを呼ぶ
 	// 2. onceを呼ぶ。newTestDataとframeはコメントアウト。1のファイルにUnixタイムスタンプを追加する
 	// 3. frameを呼ぶ。newTestDataとonceはコメントアウト。2のファイルでバックテストが実行される。
+	//
+	// 既存のファイルからテストする場合は、[]CandleData型のjsonファイルを./testdata.jsonの名前で保存し、
+	// 上記2.,3.を実行
 	// ********************************************************************************************
 
 	// newTestData(goq, "")
+	// newCompareData(goq)
 	// once()
-	frame(goq)
+	// frame(goq)
+
 }
 
 // *******************************
