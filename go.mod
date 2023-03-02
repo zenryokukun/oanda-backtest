@@ -1,4 +1,4 @@
-module test
+module oanda-backtest
 
 go 1.18
 
