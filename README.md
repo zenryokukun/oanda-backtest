@@ -39,7 +39,7 @@ go run . test-new
 # compile済の場合
 ./oanda-backtest
 # compileせずに実行する場合
-./oanda-backtest
+go run .
 ```
 
 ### コンペア時
@@ -49,7 +49,8 @@ go run . test-new
 
 コマンドライン引数に**compare**を指定して実行します。
 
-最後に結果画像をtweetします。月末時に実行想定です。
+最後に結果画像をtweetします。月末時に実行想定です。cron等で実行させる場合、一部相対パスがあるので
+プロジェクトフォルダにcdした上で実行してください。
 
 ```bash
 # compile済の場合
