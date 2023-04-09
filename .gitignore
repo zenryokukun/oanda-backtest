@@ -3,4 +3,5 @@ sankou.py
 result.png
 compile.sh
 oanda-backtest
+oanda-backtest.exe
 *.json

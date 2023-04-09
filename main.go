@@ -392,8 +392,9 @@ func execCompare(g *Goquest) {
 	msg += "#FX #USD/JPY #プログラミング初心者"
 
 	// tweet
-	t := NewTwitter("../oanda-bot/twitter.json")
-	t.tweetImage(msg, "result.png")
+	// t := NewTwitter("../oanda-bot/twitter.json")
+	// t.tweetImage(msg, "result.png")
+	tweet(msg, "result.png")
 }
 
 func main() {

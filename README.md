@@ -49,10 +49,10 @@ go run . test-new
 
 コマンドライン引数に**compare**を指定して実行します。
 
+最後に結果画像をtweetします。月末時に実行想定です。
+
 ```bash
 # compile済の場合
-./oanda-backtest compare
-# compileせずに実行する場合
 ./oanda-backtest compare
 ```
 
